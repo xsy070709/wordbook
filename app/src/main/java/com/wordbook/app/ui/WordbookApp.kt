@@ -26,6 +26,9 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -63,6 +66,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wordbook.app.data.DictionaryEntry
 import com.wordbook.app.data.Notebook
 import com.wordbook.app.data.SavedWord
+import com.wordbook.app.printing.PrintContent
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -73,8 +77,14 @@ private val Sage = Color(0xFF386A55)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WordbookApp(viewModel: WordbookViewModel) {
+fun WordbookApp(
+    viewModel: WordbookViewModel,
+    onImport: () -> Unit,
+    onExport: () -> Unit,
+    onPrint: (Long?, String?, PrintContent) -> Unit,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var showPrintDialog by remember { mutableStateOf(false) }
 
     MaterialTheme(
         colorScheme = MaterialTheme.colorScheme.copy(
@@ -97,6 +107,19 @@ fun WordbookApp(viewModel: WordbookViewModel) {
                             },
                             fontWeight = FontWeight.SemiBold,
                         )
+                    },
+                    actions = {
+                        if (state.section == AppSection.WORDS) {
+                            IconButton(onClick = onImport) {
+                                Icon(Icons.Outlined.FileUpload, contentDescription = "导入 JSON")
+                            }
+                            IconButton(onClick = onExport) {
+                                Icon(Icons.Outlined.FileDownload, contentDescription = "导出 JSON")
+                            }
+                            IconButton(onClick = { showPrintDialog = true }) {
+                                Icon(Icons.Outlined.Print, contentDescription = "打印")
+                            }
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Paper),
                 )
@@ -179,7 +202,52 @@ fun WordbookApp(viewModel: WordbookViewModel) {
                 )
             }
         }
+
+        if (showPrintDialog) {
+            val selectedNotebook = state.notebooks.firstOrNull { it.id == state.selectedNotebookId }
+            PrintDialog(
+                scopeName = selectedNotebook?.name ?: "所有生词",
+                onDismiss = { showPrintDialog = false },
+                onSelect = { content ->
+                    onPrint(selectedNotebook?.id, selectedNotebook?.name, content)
+                    showPrintDialog = false
+                },
+            )
+        }
     }
+}
+
+@Composable
+private fun PrintDialog(
+    scopeName: String,
+    onDismiss: () -> Unit,
+    onSelect: (PrintContent) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("打印生词") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("范围：$scopeName")
+                Text("打印内容", style = MaterialTheme.typography.labelLarge)
+                OutlinedButton(
+                    onClick = { onSelect(PrintContent.WORDS_ONLY) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("仅原词") }
+                Button(
+                    onClick = { onSelect(PrintContent.WORDS_AND_TRANSLATIONS) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("原词及释义") }
+                Text(
+                    "如需打印单个分册，请先在生词本顶部选择该分册。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF68716D),
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
 }
 
 @Composable

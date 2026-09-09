@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import java.util.Locale
 
 class VocabularyDatabase(context: Context) :
     SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
@@ -278,6 +279,79 @@ class VocabularyDatabase(context: Context) :
                 )
             }
         }
+    }
+
+    fun exportData(): TransferData = TransferData(
+        notebooks = listNotebooks().map { it.name },
+        words = listWords().map {
+            TransferWord(
+                word = it.word,
+                translation = it.translation,
+                phonetic = it.phonetic,
+                note = it.note,
+                notebook = it.notebookName,
+                addedAt = it.addedAt,
+            )
+        },
+    )
+
+    fun wordsForPrint(notebookId: Long?): List<SavedWord> = listWords(notebookId = notebookId)
+
+    fun importData(data: TransferData): ImportResult {
+        val db = writableDatabase
+        var added = 0
+        var updated = 0
+        var notebooksCreated = 0
+        db.beginTransaction()
+        try {
+            val notebookIds = mutableMapOf<String, Long>()
+            db.rawQuery("SELECT id, name FROM notebooks", emptyArray()).use { cursor ->
+                while (cursor.moveToNext()) {
+                    notebookIds[cursor.getString(1).lowercase(Locale.ROOT)] = cursor.getLong(0)
+                }
+            }
+            data.notebooks.forEach { name ->
+                val key = name.lowercase(Locale.ROOT)
+                if (key !in notebookIds) {
+                    val id = db.insertOrThrow(
+                        "notebooks",
+                        null,
+                        ContentValues().apply {
+                            put("name", name)
+                            put("created_at", System.currentTimeMillis())
+                        },
+                    )
+                    notebookIds[key] = id
+                    notebooksCreated++
+                }
+            }
+            data.words.forEach { item ->
+                val notebookId = item.notebook?.let { notebookIds.getValue(it.lowercase(Locale.ROOT)) }
+                val existingId = db.rawQuery(
+                    "SELECT id FROM saved_words WHERE word = ? COLLATE NOCASE LIMIT 1",
+                    arrayOf(item.word),
+                ).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null }
+                val values = ContentValues().apply {
+                    put("translation", item.translation)
+                    put("phonetic", item.phonetic)
+                    put("note", item.note)
+                    if (notebookId == null) putNull("notebook_id") else put("notebook_id", notebookId)
+                }
+                if (existingId == null) {
+                    values.put("word", item.word)
+                    values.put("added_at", item.addedAt ?: System.currentTimeMillis())
+                    db.insertOrThrow("saved_words", null, values)
+                    added++
+                } else {
+                    db.update("saved_words", values, "id = ?", arrayOf(existingId.toString()))
+                    updated++
+                }
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return ImportResult(added, updated, notebooksCreated)
     }
 
     private fun escapeLike(value: String): String = value

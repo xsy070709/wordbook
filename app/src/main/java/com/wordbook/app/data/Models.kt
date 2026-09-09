@@ -28,3 +28,23 @@ data class SearchHistoryEntry(
     val word: String,
     val searchedAt: Long,
 )
+
+data class TransferWord(
+    val word: String,
+    val translation: String,
+    val phonetic: String = "",
+    val note: String = "",
+    val notebook: String? = null,
+    val addedAt: Long? = null,
+)
+
+data class TransferData(
+    val notebooks: List<String>,
+    val words: List<TransferWord>,
+)
+
+data class ImportResult(
+    val added: Int,
+    val updated: Int,
+    val notebooksCreated: Int,
+)

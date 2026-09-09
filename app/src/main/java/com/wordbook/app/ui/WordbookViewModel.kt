@@ -11,6 +11,8 @@ import com.wordbook.app.data.SavedWord
 import com.wordbook.app.data.SearchHistoryEntry
 import com.wordbook.app.data.VocabularyDatabase
 import com.wordbook.app.data.WordNormalizer
+import com.wordbook.app.data.ImportResult
+import com.wordbook.app.data.WordbookJson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -159,6 +161,28 @@ class WordbookViewModel(
     }
 
     fun deleteNotebook(id: Long) = mutate { vocabulary.deleteNotebook(id) }
+
+    fun exportJson(onResult: (Result<String>) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = runCatching { WordbookJson.encode(vocabulary.exportData()) }
+            withContext(Dispatchers.Main) { onResult(result) }
+        }
+    }
+
+    fun importJson(json: String, onResult: (Result<ImportResult>) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = runCatching { vocabulary.importData(WordbookJson.decode(json)) }
+            if (result.isSuccess) refreshPersonalDataNow()
+            withContext(Dispatchers.Main) { onResult(result) }
+        }
+    }
+
+    fun loadWordsForPrint(notebookId: Long?, onResult: (List<SavedWord>) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val words = vocabulary.wordsForPrint(notebookId)
+            withContext(Dispatchers.Main) { onResult(words) }
+        }
+    }
 
     private fun refreshPersonalData() {
         viewModelScope.launch(Dispatchers.IO) { refreshPersonalDataNow() }
