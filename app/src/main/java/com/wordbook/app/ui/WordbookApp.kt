@@ -159,6 +159,7 @@ fun WordbookApp(viewModel: WordbookViewModel) {
                     onQueryChange = viewModel::updateLookupQuery,
                     onSuggestion = viewModel::chooseSuggestion,
                     onAdd = viewModel::addCurrentWord,
+                    onClearHistory = viewModel::clearSearchHistory,
                     modifier = Modifier.padding(innerPadding),
                 )
                 AppSection.WORDS -> WordsScreen(
@@ -202,6 +203,7 @@ private fun LookupScreen(
     onQueryChange: (String) -> Unit,
     onSuggestion: (DictionaryEntry) -> Unit,
     onAdd: (Long?) -> Unit,
+    onClearHistory: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var chooseNotebook by remember { mutableStateOf(false) }
@@ -246,7 +248,33 @@ private fun LookupScreen(
             }
         }
 
-        if (state.lookupQuery.isBlank()) {
+        if (state.lookupQuery.isBlank() && state.searchHistory.isNotEmpty()) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SectionLabel("搜索历史")
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onClearHistory) { Text("清空") }
+                }
+            }
+            items(state.searchHistory, key = { it.word }) { history ->
+                Surface(
+                    color = Color.White,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth().clickable { onQueryChange(history.word) },
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Outlined.Search, contentDescription = null, tint = Sage)
+                        Spacer(Modifier.width(12.dp))
+                        Text(history.word, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+
+        if (state.lookupQuery.isBlank() && state.searchHistory.isEmpty()) {
             item {
                 EmptyMessage(
                     "离线查词",

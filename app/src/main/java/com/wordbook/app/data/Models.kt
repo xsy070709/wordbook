@@ -23,3 +23,8 @@ data class SavedWord(
     val notebookId: Long?,
     val notebookName: String?,
 )
+
+data class SearchHistoryEntry(
+    val word: String,
+    val searchedAt: Long,
+)

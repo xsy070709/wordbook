@@ -39,12 +39,65 @@ class VocabularyDatabase(context: Context) :
         )
         db.execSQL("CREATE INDEX saved_words_order ON saved_words(word COLLATE NOCASE)")
         db.execSQL("CREATE INDEX saved_words_notebook ON saved_words(notebook_id)")
+        createSearchHistoryTable(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE saved_words ADD COLUMN note TEXT NOT NULL DEFAULT ''")
         }
+        if (oldVersion < 3) {
+            createSearchHistoryTable(db)
+        }
+    }
+
+    private fun createSearchHistoryTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE search_history (
+                word TEXT NOT NULL COLLATE NOCASE PRIMARY KEY,
+                searched_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX search_history_recent ON search_history(searched_at DESC)")
+    }
+
+    fun recordSearch(word: String) {
+        val cleanWord = WordNormalizer.normalize(word)
+        if (cleanWord.isBlank()) return
+        writableDatabase.insertWithOnConflict(
+            "search_history",
+            null,
+            ContentValues().apply {
+                put("word", cleanWord)
+                put("searched_at", System.currentTimeMillis())
+            },
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
+        writableDatabase.execSQL(
+            """
+            DELETE FROM search_history
+            WHERE word NOT IN (
+                SELECT word FROM search_history ORDER BY searched_at DESC LIMIT 50
+            )
+            """.trimIndent(),
+        )
+    }
+
+    fun listSearchHistory(limit: Int = 20): List<SearchHistoryEntry> = readableDatabase.rawQuery(
+        "SELECT word, searched_at FROM search_history ORDER BY searched_at DESC LIMIT ?",
+        arrayOf(limit.coerceIn(1, 50).toString()),
+    ).use { cursor ->
+        buildList {
+            while (cursor.moveToNext()) {
+                add(SearchHistoryEntry(word = cursor.getString(0), searchedAt = cursor.getLong(1)))
+            }
+        }
+    }
+
+    fun clearSearchHistory() {
+        writableDatabase.delete("search_history", null, null)
     }
 
     fun addWord(entry: DictionaryEntry, notebookId: Long?): Boolean {
@@ -234,6 +287,6 @@ class VocabularyDatabase(context: Context) :
 
     private companion object {
         const val DATABASE_NAME = "wordbook.db"
-        const val DATABASE_VERSION = 2
+        const val DATABASE_VERSION = 3
     }
 }

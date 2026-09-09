@@ -8,6 +8,7 @@ import com.wordbook.app.data.DictionaryDatabase
 import com.wordbook.app.data.DictionaryEntry
 import com.wordbook.app.data.Notebook
 import com.wordbook.app.data.SavedWord
+import com.wordbook.app.data.SearchHistoryEntry
 import com.wordbook.app.data.VocabularyDatabase
 import com.wordbook.app.data.WordNormalizer
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +34,7 @@ data class WordbookUiState(
     val selectedNotebookId: Long? = null,
     val notebooks: List<Notebook> = emptyList(),
     val savedExactWord: Boolean = false,
+    val searchHistory: List<SearchHistoryEntry> = emptyList(),
 )
 
 class WordbookViewModel(
@@ -77,6 +79,10 @@ class WordbookViewModel(
                     savedExactWord = result.third,
                 )
             }
+            result.first?.let { entry ->
+                vocabulary.recordSearch(entry.word)
+                refreshSearchHistoryNow()
+            }
         }
     }
 
@@ -90,14 +96,23 @@ class WordbookViewModel(
             )
         }
         viewModelScope.launch(Dispatchers.IO) {
+            vocabulary.recordSearch(entry.word)
             val saved = vocabulary.isSaved(entry.word)
-            _state.update { it.copy(savedExactWord = saved) }
+            val history = vocabulary.listSearchHistory()
+            _state.update { it.copy(savedExactWord = saved, searchHistory = history) }
         }
     }
 
     fun openExternalWord(word: String) {
         selectSection(AppSection.LOOKUP)
         updateLookupQuery(word)
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch(Dispatchers.IO) {
+            vocabulary.clearSearchHistory()
+            _state.update { it.copy(searchHistory = emptyList()) }
+        }
     }
 
     fun addCurrentWord(notebookId: Long?) {
@@ -162,7 +177,20 @@ class WordbookViewModel(
         val notebooks = vocabulary.listNotebooks()
         val selected = snapshot.selectedNotebookId?.takeIf { id -> notebooks.any { it.id == id } }
         val words = vocabulary.listWords(snapshot.wordFilter, selected)
-        _state.update { it.copy(notebooks = notebooks, savedWords = words, selectedNotebookId = selected) }
+        val history = vocabulary.listSearchHistory()
+        _state.update {
+            it.copy(
+                notebooks = notebooks,
+                savedWords = words,
+                selectedNotebookId = selected,
+                searchHistory = history,
+            )
+        }
+    }
+
+    private fun refreshSearchHistoryNow() {
+        val history = vocabulary.listSearchHistory()
+        _state.update { it.copy(searchHistory = history) }
     }
 
     private fun mutate(block: () -> Unit) {
