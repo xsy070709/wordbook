@@ -1,8 +1,10 @@
 package com.wordbook.app.data
 
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WordbookJsonTest {
@@ -27,8 +29,24 @@ class WordbookJsonTest {
         assertEquals(listOf("阅读积累"), decoded.notebooks)
         assertEquals("abandon", decoded.words.single().word)
         assertEquals("阅读积累", decoded.words.single().notebook)
+        assertEquals(1_757_334_930_000, decoded.words.single().addedAt)
+        val exportedTime = JSONObject(json).getJSONArray("words").getJSONObject(0).getString("addedAt")
+        assertTrue(exportedTime.matches(Regex(".*[+-]\\d{2}:\\d{2}")))
         assertFalse(json.contains("\"phonetic\""))
         assertFalse(json.contains("\"note\""))
+    }
+
+    @Test
+    fun acceptsUtcAndMillisecondIsoTimes() {
+        val utc = WordbookJson.decode(
+            """{"words":[{"word":"utc","translation":"时间","addedAt":"2026-09-01T12:15:30Z"}]}""",
+        )
+        val milliseconds = WordbookJson.decode(
+            """{"words":[{"word":"ms","translation":"毫秒","addedAt":"2026-09-01T20:15:30.123+08:00"}]}""",
+        )
+
+        assertEquals(1_788_264_930_000, utc.words.single().addedAt)
+        assertEquals(1_788_264_930_123, milliseconds.words.single().addedAt)
     }
 
     @Test
