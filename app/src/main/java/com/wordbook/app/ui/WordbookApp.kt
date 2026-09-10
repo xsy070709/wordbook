@@ -75,6 +75,7 @@ import com.wordbook.app.data.Notebook
 import com.wordbook.app.data.SavedWord
 import com.wordbook.app.data.SearchHistoryEntry
 import com.wordbook.app.printing.PrintContent
+import com.wordbook.app.update.AppUpdate
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -90,6 +91,10 @@ fun WordbookApp(
     onImport: () -> Unit,
     onExport: () -> Unit,
     onPrint: (Set<Long>?, String, PrintContent) -> Unit,
+    availableUpdate: AppUpdate? = null,
+    onDismissUpdate: () -> Unit = {},
+    onIgnoreUpdate: (AppUpdate) -> Unit = {},
+    onOpenUpdate: (AppUpdate) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showPrintDialog by remember { mutableStateOf(false) }
@@ -225,7 +230,45 @@ fun WordbookApp(
                 },
             )
         }
+
+        availableUpdate?.let { update ->
+            UpdateAvailableDialog(
+                update = update,
+                onDismiss = onDismissUpdate,
+                onIgnore = { onIgnoreUpdate(update) },
+                onOpen = { onOpenUpdate(update) },
+            )
+        }
     }
+}
+
+@Composable
+private fun UpdateAvailableDialog(
+    update: AppUpdate,
+    onDismiss: () -> Unit,
+    onIgnore: () -> Unit,
+    onOpen: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("发现新版本 v${update.version}") },
+        text = {
+            LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                item {
+                    Text(update.title, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(10.dp))
+                    Text(update.notes)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onOpen) { Text("前往更新") } },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onIgnore) { Text("忽略此版本") }
+                TextButton(onClick = onDismiss) { Text("稍后") }
+            }
+        },
+    )
 }
 
 @Composable

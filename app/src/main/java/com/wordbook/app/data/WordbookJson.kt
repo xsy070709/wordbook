@@ -112,17 +112,28 @@ object WordbookJson {
     private fun invalid(path: String, reason: String): Nothing =
         throw IllegalArgumentException("$path $reason")
 
-    private fun formatTime(timestamp: Long): String = timeFormat().format(Date(timestamp))
+    private fun formatTime(timestamp: Long): String {
+        val value = timeFormat().format(Date(timestamp))
+        return value.dropLast(2) + ":" + value.takeLast(2)
+    }
 
     private fun parseTime(value: String): Long? {
-        return listOf("yyyy-MM-dd'T'HH:mm:ssXXX", "yyyy-MM-dd'T'HH:mm:ss.SSSXXX").firstNotNullOfOrNull { pattern ->
+        val normalized = normalizeTimeZone(value)
+        return listOf("yyyy-MM-dd'T'HH:mm:ssZ", "yyyy-MM-dd'T'HH:mm:ss.SSSZ").firstNotNullOfOrNull { pattern ->
             val position = ParsePosition(0)
-            val date = timeFormat(pattern).parse(value, position)
-            date?.time?.takeIf { position.index == value.length }
+            val date = timeFormat(pattern).parse(normalized, position)
+            date?.time?.takeIf { position.index == normalized.length }
         }
     }
 
-    private fun timeFormat(pattern: String = "yyyy-MM-dd'T'HH:mm:ssXXX") = SimpleDateFormat(pattern, Locale.US).apply {
+    private fun normalizeTimeZone(value: String): String = when {
+        value.endsWith('Z') -> value.dropLast(1) + "+0000"
+        value.length >= 6 && value[value.length - 3] == ':' &&
+            value[value.length - 6] in charArrayOf('+', '-') -> value.removeRange(value.length - 3, value.length - 2)
+        else -> value
+    }
+
+    private fun timeFormat(pattern: String = "yyyy-MM-dd'T'HH:mm:ssZ") = SimpleDateFormat(pattern, Locale.US).apply {
         isLenient = false
         timeZone = TimeZone.getDefault()
     }
