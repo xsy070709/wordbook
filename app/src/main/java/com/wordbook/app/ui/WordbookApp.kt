@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,6 +35,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -81,7 +83,7 @@ fun WordbookApp(
     viewModel: WordbookViewModel,
     onImport: () -> Unit,
     onExport: () -> Unit,
-    onPrint: (Long?, String?, PrintContent) -> Unit,
+    onPrint: (Set<Long>?, String, PrintContent) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showPrintDialog by remember { mutableStateOf(false) }
@@ -111,10 +113,10 @@ fun WordbookApp(
                     actions = {
                         if (state.section == AppSection.WORDS) {
                             IconButton(onClick = onImport) {
-                                Icon(Icons.Outlined.FileUpload, contentDescription = "导入 JSON")
+                                Icon(Icons.Outlined.FileDownload, contentDescription = "导入 JSON")
                             }
                             IconButton(onClick = onExport) {
-                                Icon(Icons.Outlined.FileDownload, contentDescription = "导出 JSON")
+                                Icon(Icons.Outlined.FileUpload, contentDescription = "导出 JSON")
                             }
                             IconButton(onClick = { showPrintDialog = true }) {
                                 Icon(Icons.Outlined.Print, contentDescription = "打印")
@@ -204,12 +206,12 @@ fun WordbookApp(
         }
 
         if (showPrintDialog) {
-            val selectedNotebook = state.notebooks.firstOrNull { it.id == state.selectedNotebookId }
             PrintDialog(
-                scopeName = selectedNotebook?.name ?: "所有生词",
+                notebooks = state.notebooks,
+                initialNotebookId = state.selectedNotebookId,
                 onDismiss = { showPrintDialog = false },
-                onSelect = { content ->
-                    onPrint(selectedNotebook?.id, selectedNotebook?.name, content)
+                onSelect = { notebookIds, scopeName, content ->
+                    onPrint(notebookIds, scopeName, content)
                     showPrintDialog = false
                 },
             )
@@ -219,30 +221,73 @@ fun WordbookApp(
 
 @Composable
 private fun PrintDialog(
-    scopeName: String,
+    notebooks: List<Notebook>,
+    initialNotebookId: Long?,
     onDismiss: () -> Unit,
-    onSelect: (PrintContent) -> Unit,
+    onSelect: (Set<Long>?, String, PrintContent) -> Unit,
 ) {
+    var selectedIds by remember(initialNotebookId, notebooks) {
+        mutableStateOf(initialNotebookId?.let(::setOf))
+    }
+    val scopeName = when {
+        selectedIds == null -> "全部"
+        selectedIds!!.size == 1 -> notebooks.firstOrNull { it.id in selectedIds!! }?.name ?: "所选分册"
+        else -> "${selectedIds!!.size} 本分册"
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("打印生词") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("范围：$scopeName")
+                Text("打印范围", style = MaterialTheme.typography.labelLarge)
+                Column(modifier = Modifier.heightIn(max = 240.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedIds = null },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = selectedIds == null, onCheckedChange = { selectedIds = null })
+                        Text("全部生词")
+                    }
+                    LazyColumn {
+                        items(notebooks, key = { it.id }) { notebook ->
+                            val checked = selectedIds?.contains(notebook.id) == true
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val next = (selectedIds ?: emptySet()).toMutableSet()
+                                        if (!next.add(notebook.id)) next.remove(notebook.id)
+                                        selectedIds = next
+                                    },
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = checked,
+                                    onCheckedChange = {
+                                        val next = (selectedIds ?: emptySet()).toMutableSet()
+                                        if (checked) next.remove(notebook.id) else next.add(notebook.id)
+                                        selectedIds = next
+                                    },
+                                )
+                                Text("${notebook.name}（${notebook.wordCount}）")
+                            }
+                        }
+                    }
+                }
                 Text("打印内容", style = MaterialTheme.typography.labelLarge)
                 OutlinedButton(
-                    onClick = { onSelect(PrintContent.WORDS_ONLY) },
+                    onClick = { onSelect(selectedIds, scopeName, PrintContent.WORDS_ONLY) },
+                    enabled = selectedIds == null || selectedIds!!.isNotEmpty(),
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("仅原词") }
                 Button(
-                    onClick = { onSelect(PrintContent.WORDS_AND_TRANSLATIONS) },
+                    onClick = { onSelect(selectedIds, scopeName, PrintContent.WORDS_AND_TRANSLATIONS) },
+                    enabled = selectedIds == null || selectedIds!!.isNotEmpty(),
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("原词及释义") }
-                Text(
-                    "如需打印单个分册，请先在生词本顶部选择该分册。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF68716D),
-                )
             }
         },
         confirmButton = {},

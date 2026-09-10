@@ -8,7 +8,7 @@
 手机端请下载文件名为 `wordbook-版本号.apk` 的附件；GitHub 自动生成的
 `Source code` 压缩包不能安装。
 
-当前首发版本：[下载 wordbook-0.3.0.apk](https://github.com/xsy070709/wordbook/releases/download/v0.3.0/wordbook-0.3.0.apk)。
+当前版本：[下载 wordbook-0.4.1.apk](https://github.com/xsy070709/wordbook/releases/download/v0.4.1/wordbook-0.4.1.apk)。
 发布流程见 [docs/RELEASING.md](docs/RELEASING.md)。
 
 ## 已实现
@@ -24,9 +24,9 @@
 - 从其他 Android 应用的选中文本菜单或“分享”菜单进入查词
 - 个人数据与只读词典数据分离，删除分册不会删除生词
 - 通过 JSON 文件导入、导出完整生词本，便于迁移和批量操作
-- 打印全部生词或指定分册，可选择仅打印原词或同时打印释义
+- 打印全部生词或合并打印若干分册，可选择仅打印原词或同时打印释义
 
-JSON 文件格式见 [docs/IMPORT_EXPORT_FORMAT.md](docs/IMPORT_EXPORT_FORMAT.md)。导入、导出和打印入口位于“生词本”页面右上角；打印指定分册前，请先在页面顶部选中该分册。
+JSON 文件格式见 [docs/IMPORT_EXPORT_FORMAT.md](docs/IMPORT_EXPORT_FORMAT.md)。导入、导出和打印入口位于“生词本”页面右上角；打印时可在弹窗中选择全部生词或同时勾选若干分册。
 
 ## 首次搭建（Windows）
 

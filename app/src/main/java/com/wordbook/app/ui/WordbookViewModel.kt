@@ -177,9 +177,9 @@ class WordbookViewModel(
         }
     }
 
-    fun loadWordsForPrint(notebookId: Long?, onResult: (List<SavedWord>) -> Unit) {
+    fun loadWordsForPrint(notebookIds: Set<Long>?, onResult: (List<SavedWord>) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
-            val words = vocabulary.wordsForPrint(notebookId)
+            val words = vocabulary.wordsForPrint(notebookIds)
             withContext(Dispatchers.Main) { onResult(words) }
         }
     }

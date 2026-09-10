@@ -65,7 +65,8 @@ class WordPrintAdapter(
                 val page = document.startPage(pageNumber)
                 val canvas = page.canvas
                 val rect = page.info.contentRect
-                val left = rect.left.toFloat()
+                val adaptiveLeftInset = (rect.width() * 0.035f).coerceIn(16f, 32f)
+                val left = rect.left + adaptiveLeftInset
                 val right = rect.right.toFloat()
                 var y = rect.top + 32f
 

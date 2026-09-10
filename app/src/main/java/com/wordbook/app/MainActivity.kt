@@ -111,13 +111,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun printWords(notebookId: Long?, notebookName: String?, content: PrintContent) {
-        viewModel.loadWordsForPrint(notebookId) { words ->
+    private fun printWords(notebookIds: Set<Long>?, scopeName: String, content: PrintContent) {
+        viewModel.loadWordsForPrint(notebookIds) { words ->
             if (words.isEmpty()) {
                 toast("没有可打印的生词")
                 return@loadWordsForPrint
             }
-            val title = notebookName?.let { "生词本 · $it" } ?: "生词本 · 全部"
+            val title = "生词本 · $scopeName"
             val manager = getSystemService(Context.PRINT_SERVICE) as PrintManager
             manager.print(
                 title,

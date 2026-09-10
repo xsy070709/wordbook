@@ -179,7 +179,11 @@ class VocabularyDatabase(context: Context) :
         arrayOf(word),
     ).use { it.moveToFirst() }
 
-    fun listWords(query: String = "", notebookId: Long? = null): List<SavedWord> {
+    fun listWords(
+        query: String = "",
+        notebookId: Long? = null,
+        notebookIds: Set<Long>? = null,
+    ): List<SavedWord> {
         val where = mutableListOf<String>()
         val args = mutableListOf<String>()
         if (query.isNotBlank()) {
@@ -192,6 +196,11 @@ class VocabularyDatabase(context: Context) :
         if (notebookId != null) {
             where += "s.notebook_id = ?"
             args += notebookId.toString()
+        }
+        if (notebookIds != null) {
+            if (notebookIds.isEmpty()) return emptyList()
+            where += "s.notebook_id IN (${notebookIds.joinToString(",") { "?" }})"
+            args += notebookIds.map(Long::toString)
         }
         val whereSql = if (where.isEmpty()) "" else "WHERE ${where.joinToString(" AND ")}"
         return readableDatabase.rawQuery(
@@ -295,7 +304,7 @@ class VocabularyDatabase(context: Context) :
         },
     )
 
-    fun wordsForPrint(notebookId: Long?): List<SavedWord> = listWords(notebookId = notebookId)
+    fun wordsForPrint(notebookIds: Set<Long>?): List<SavedWord> = listWords(notebookIds = notebookIds)
 
     fun importData(data: TransferData): ImportResult {
         val db = writableDatabase
