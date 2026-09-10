@@ -8,7 +8,7 @@
 手机端请下载文件名为 `wordbook-版本号.apk` 的附件；GitHub 自动生成的
 `Source code` 压缩包不能安装。
 
-当前版本：[下载 wordbook-0.4.1.apk](https://github.com/xsy070709/wordbook/releases/download/v0.4.1/wordbook-0.4.1.apk)。
+当前版本：[下载 wordbook-0.4.3.apk](https://github.com/xsy070709/wordbook/releases/download/v0.4.3/wordbook-0.4.3.apk)。
 发布流程见 [docs/RELEASING.md](docs/RELEASING.md)。
 
 ## 已实现
