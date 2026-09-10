@@ -1,6 +1,8 @@
 package com.wordbook.app.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +22,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.BookmarkAdd
@@ -60,6 +63,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,6 +73,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wordbook.app.data.DictionaryEntry
 import com.wordbook.app.data.Notebook
 import com.wordbook.app.data.SavedWord
+import com.wordbook.app.data.SearchHistoryEntry
 import com.wordbook.app.printing.PrintContent
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -182,7 +188,10 @@ fun WordbookApp(
                 AppSection.LOOKUP -> LookupScreen(
                     state = state,
                     onQueryChange = viewModel::updateLookupQuery,
+                    onSubmitSearch = viewModel::submitCurrentSearch,
                     onSuggestion = viewModel::chooseSuggestion,
+                    onHistoryClick = viewModel::openHistoryEntry,
+                    onDeleteHistory = viewModel::deleteSearchHistory,
                     onAdd = viewModel::addCurrentWord,
                     onClearHistory = viewModel::clearSearchHistory,
                     modifier = Modifier.padding(innerPadding),
@@ -314,18 +323,38 @@ private fun RowScope.NavigationItem(
 private fun LookupScreen(
     state: WordbookUiState,
     onQueryChange: (String) -> Unit,
+    onSubmitSearch: () -> Unit,
     onSuggestion: (DictionaryEntry) -> Unit,
+    onHistoryClick: (SearchHistoryEntry) -> Unit,
+    onDeleteHistory: (String) -> Unit,
     onAdd: (Long?) -> Unit,
     onClearHistory: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var chooseNotebook by remember { mutableStateOf(false) }
+    var showAllHistory by remember { mutableStateOf(false) }
+    var confirmClearHistory by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    if (showAllHistory) {
+        SearchHistoryScreen(
+            history = state.searchHistory,
+            onBack = { showAllHistory = false },
+            onSelect = {
+                showAllHistory = false
+                onHistoryClick(it)
+            },
+            onDelete = onDeleteHistory,
+            onClear = { confirmClearHistory = true },
+            modifier = modifier,
+        )
+    } else {
+
+        LazyColumn(
+            modifier = modifier.fillMaxSize(),
+            contentPadding = PaddingValues(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
         item {
             OutlinedTextField(
                 value = state.lookupQuery,
@@ -335,6 +364,11 @@ private fun LookupScreen(
                 label = { Text("输入英文单词") },
                 leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                 shape = RoundedCornerShape(18.dp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = {
+                    focusManager.clearFocus()
+                    onSubmitSearch()
+                }),
             )
         }
 
@@ -366,24 +400,14 @@ private fun LookupScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SectionLabel("搜索历史")
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onClearHistory) { Text("清空") }
+                    if (state.searchHistory.size > 20) {
+                        TextButton(onClick = { showAllHistory = true }) { Text("查看更多") }
+                    }
+                    TextButton(onClick = { confirmClearHistory = true }) { Text("清空") }
                 }
             }
-            items(state.searchHistory, key = { it.word }) { history ->
-                Surface(
-                    color = Color.White,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth().clickable { onQueryChange(history.word) },
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Outlined.Search, contentDescription = null, tint = Sage)
-                        Spacer(Modifier.width(12.dp))
-                        Text(history.word, fontWeight = FontWeight.Medium)
-                    }
-                }
+            items(state.searchHistory.take(20), key = { it.word }) { history ->
+                SearchHistoryRow(history, onSelect = { onHistoryClick(history) }, onDelete = onDeleteHistory)
             }
         }
 
@@ -395,6 +419,23 @@ private fun LookupScreen(
                 )
             }
         }
+        }
+    }
+
+    if (confirmClearHistory) {
+        AlertDialog(
+            onDismissRequest = { confirmClearHistory = false },
+            title = { Text("清空搜索历史？") },
+            text = { Text("最近100条搜索记录将全部删除，此操作无法撤销。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onClearHistory()
+                    confirmClearHistory = false
+                    showAllHistory = false
+                }) { Text("清空") }
+            },
+            dismissButton = { TextButton(onClick = { confirmClearHistory = false }) { Text("取消") } },
+        )
     }
 
     if (chooseNotebook) {
@@ -407,6 +448,72 @@ private fun LookupScreen(
                 chooseNotebook = false
             },
         )
+    }
+}
+
+@Composable
+private fun SearchHistoryScreen(
+    history: List<SearchHistoryEntry>,
+    onBack: () -> Unit,
+    onSelect: (SearchHistoryEntry) -> Unit,
+    onDelete: (String) -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回查词")
+                }
+                Text("全部搜索历史", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                if (history.isNotEmpty()) TextButton(onClick = onClear) { Text("清空") }
+            }
+        }
+        if (history.isEmpty()) {
+            item { EmptyMessage("暂无搜索历史", "有效搜索会保留在这里。") }
+        } else {
+            items(history, key = { it.word }) { entry ->
+                SearchHistoryRow(entry, onSelect = { onSelect(entry) }, onDelete = onDelete)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchHistoryRow(
+    entry: SearchHistoryEntry,
+    onSelect: () -> Unit,
+    onDelete: (String) -> Unit,
+) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onSelect),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Outlined.Search, contentDescription = null, tint = Sage)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(entry.word, fontWeight = FontWeight.Medium)
+                Text(
+                    formatSearchTime(entry.searchedAt),
+                    color = Color(0xFF68716D),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            IconButton(onClick = { onDelete(entry.word) }) {
+                Icon(Icons.Outlined.Delete, contentDescription = "删除 ${entry.word}")
+            }
+        }
     }
 }
 
@@ -851,4 +958,7 @@ private fun SectionLabel(text: String) {
 }
 
 private fun formatDate(timestamp: Long): String = SimpleDateFormat("yyyy年M月d日", Locale.CHINA)
+    .format(Date(timestamp))
+
+private fun formatSearchTime(timestamp: Long): String = SimpleDateFormat("yyyy年M月d日 HH:mm", Locale.CHINA)
     .format(Date(timestamp))

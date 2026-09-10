@@ -80,15 +80,15 @@ class VocabularyDatabase(context: Context) :
             """
             DELETE FROM search_history
             WHERE word NOT IN (
-                SELECT word FROM search_history ORDER BY searched_at DESC LIMIT 50
+                SELECT word FROM search_history ORDER BY searched_at DESC LIMIT 100
             )
             """.trimIndent(),
         )
     }
 
-    fun listSearchHistory(limit: Int = 20): List<SearchHistoryEntry> = readableDatabase.rawQuery(
+    fun listSearchHistory(limit: Int = 100): List<SearchHistoryEntry> = readableDatabase.rawQuery(
         "SELECT word, searched_at FROM search_history ORDER BY searched_at DESC LIMIT ?",
-        arrayOf(limit.coerceIn(1, 50).toString()),
+        arrayOf(limit.coerceIn(1, 100).toString()),
     ).use { cursor ->
         buildList {
             while (cursor.moveToNext()) {
@@ -99,6 +99,14 @@ class VocabularyDatabase(context: Context) :
 
     fun clearSearchHistory() {
         writableDatabase.delete("search_history", null, null)
+    }
+
+    fun deleteSearchHistory(word: String) {
+        writableDatabase.delete(
+            "search_history",
+            "word = ? COLLATE NOCASE",
+            arrayOf(WordNormalizer.normalize(word)),
+        )
     }
 
     fun addWord(entry: DictionaryEntry, notebookId: Long?): Boolean {

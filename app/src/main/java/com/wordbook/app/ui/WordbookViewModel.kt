@@ -81,9 +81,32 @@ class WordbookViewModel(
                     savedExactWord = result.third,
                 )
             }
+        }
+    }
+
+    fun submitCurrentSearch() {
+        val query = _state.value.lookupQuery
+        if (query.isBlank()) return
+        lookupJob?.cancel()
+        lookupJob = viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                val exact = dictionary.findExact(query)
+                Triple(exact, dictionary.suggest(query), exact?.let { vocabulary.isSaved(it.word) } == true)
+            }
+            if (_state.value.lookupQuery != query) return@launch
+            _state.update {
+                it.copy(
+                    exactEntry = result.first,
+                    suggestions = result.second,
+                    lookupFinished = true,
+                    savedExactWord = result.third,
+                )
+            }
             result.first?.let { entry ->
-                vocabulary.recordSearch(entry.word)
-                refreshSearchHistoryNow()
+                withContext(Dispatchers.IO) {
+                    vocabulary.recordSearch(entry.word)
+                    refreshSearchHistoryNow()
+                }
             }
         }
     }
@@ -108,6 +131,12 @@ class WordbookViewModel(
     fun openExternalWord(word: String) {
         selectSection(AppSection.LOOKUP)
         updateLookupQuery(word)
+        submitCurrentSearch()
+    }
+
+    fun openHistoryEntry(entry: SearchHistoryEntry) {
+        updateLookupQuery(entry.word)
+        submitCurrentSearch()
     }
 
     fun clearSearchHistory() {
@@ -117,9 +146,17 @@ class WordbookViewModel(
         }
     }
 
+    fun deleteSearchHistory(word: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            vocabulary.deleteSearchHistory(word)
+            refreshSearchHistoryNow()
+        }
+    }
+
     fun addCurrentWord(notebookId: Long?) {
         val entry = _state.value.exactEntry ?: return
         viewModelScope.launch(Dispatchers.IO) {
+            vocabulary.recordSearch(entry.word)
             vocabulary.addWord(entry, notebookId)
             refreshPersonalDataNow()
             _state.update { it.copy(savedExactWord = true) }
